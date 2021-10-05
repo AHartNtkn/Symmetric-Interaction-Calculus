@@ -79,9 +79,9 @@ fn parse_name(code : &Str) -> (&Str, &Str) {
 pub fn namespace(space : &Vec<u8>, idx : u32, var : &Vec<u8>) -> Vec<u8> {
     if var != b"-" {
         let mut nam = space.clone();
-        nam.extend_from_slice(b"/");
+        nam.extend_from_slice(b"#");
         nam.append(&mut idx.to_string().as_bytes().to_vec());
-        nam.extend_from_slice(b"/");
+        nam.extend_from_slice(b"#");
         nam.append(&mut var.clone());
         nam
     } else {
@@ -187,7 +187,7 @@ pub fn parse_term<'a>(code : &'a Str, ctx : &mut Context<'a>, idx : &mut u32, co
                 (code, Let{tag, fst, snd, val, nxt})
             },
             // Definition
-            b'/' => {
+            b':' => {
                 let (code, nam) = parse_name(&code[1..]);
                 let (code, val) = parse_term(code, ctx, idx, comment);
                 extend(nam, Some(val), ctx);
@@ -237,19 +237,19 @@ pub fn to_string(term : &Term) -> Vec<Chr> {
     fn stringify_term(code : &mut Vec<u8>, term : &Term) {
         match term {
             &Lam{ref nam, ref bod} => {
-                code.extend_from_slice(b"#");
+                code.extend_from_slice(b"\\");
                 code.append(&mut nam.clone());
                 code.extend_from_slice(b" ");
                 stringify_term(code, &bod);
             },
             &App{ref fun, ref arg} => {
-                code.extend_from_slice(b":");
+                code.extend_from_slice(b"/");
                 stringify_term(code, &fun);
                 code.extend_from_slice(b" ");
                 stringify_term(code, &arg);
             },
             &Par{tag, ref fst, ref snd} => {
-                code.extend_from_slice(b"&");
+                code.extend_from_slice(b"|");
                 code.append(&mut new_name(tag));
                 code.extend_from_slice(b" ");
                 stringify_term(code, &fst);

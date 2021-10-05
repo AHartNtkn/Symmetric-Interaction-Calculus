@@ -1,81 +1,81 @@
 // I'm using a different syntax here, because the parser is dumb.
 // - [=<tag> a b c d] stands for [let <tag>(a,b) = c in d]
 // - [&<tag> a b] stands for [<tag>(a,b)]
-// - [@a b] stands for [(a b)]
-// - [#a b] stands for [λa. b]
+// - [/a b] stands for [(a b)]
+// - [\\a b] stands for [λa. b]
 // - [*] stands for [()]
 // - [-] stands for an erased (unused) lambda or let variable
-// - [/a b c] inlines all occurrences of [a] by the closed term [b]
+// - [#a b c] inlines all occurrences of [a] by the closed term [b]
 
 mod term;
 mod net;
 
 pub fn example() {
     let example = term::from_string(b"
-        (repetitor 1)
-        /c1 #f #x
-            :f x
+        (example 1)
+        :c1 \\f \\x
+            /f x
 
-        (repetitor 2)
-        /c2 #f #x
+        (example 2)
+        :c2 \\f \\x
             = f1_a f1_b f
-            :f1_a :f1_b x
+            /f1_a /f1_b x
 
-        (repetitor 3)
-        /c3 #f #x
+        (example 3)
+        :c3 \\f \\x
             = f1_a f1_b f
             = f1_c f1_d f1_b
-            = f2_a -    #x2 :f1_c :f1_d x2
-            :f1_a :f2_a x
+            = f2_a -    \\x2 /f1_c /f1_d x2
+            /f1_a /f2_a x
 
-        (repetitor 4)
-        /c4 #f #x
+        (example 4)
+        :c4 \\f \\x
             = f1_a f1_b f
-            = f2_a f2_b #x2 :f1_a :f1_b x2
-            :f2_a :f2_b x
+            = f2_a f2_b \\x2 /f1_a /f1_b x2
+            /f2_a /f2_b x
 
         (boolean true)
-        /true #true #-
+        :true \\true \\-
             true
 
         (boolean false)
-        /false #- #false
+        :false \\- \\false
             false
 
         (boolean negation)
-        /not #bool #true #false
-            ::bool false true
+        :not \\bool \\true \\false
+            //bool false true
 
         (pair)
-        /pair #a #b #t
-            ::t a b
+        :pair \\a \\b \\t
+            //t a b
 
         (nat zero)
-        /zer #- #Z
+        :zer \\- \\Z
             Z
 
         (nat successor)
-        /suc #n #S #-
-            :S n
+        :suc \\n \\S \\-
+            /S n
 
         (nat addition)
-        /add = add_a add_b #n ::n
-            #n_pred #m_a #S #- :S ::add_a n_pred m_a
-            #m_b m_b
+        :add = add_a add_b \\n //n
+            \\n_pred \\m_a \\S \\- /S //add_a n_pred m_a
+            \\m_b m_b
             add_b
 
         (nat multiplication)
-        /mul #n = mul_a mul_b #m ::m
-            #m_pred ::add n :mul_a m_pred
+        :mul \\n = mul_a mul_b \\m //m
+            \\m_pred //add n /mul_a m_pred
             zer
             mul_b
 
         (test program)
-        ::pair
-            ::c3 not true
-            ::mul
-                :suc :suc :suc zer
-                :suc :suc :suc zer
+        //pair
+            //c3 not true
+            //mul
+                /suc /suc /suc zer
+                /suc /suc /suc zer
     ");
 
     println!("-- Input (with original names):\n\n{}\n", &example);
