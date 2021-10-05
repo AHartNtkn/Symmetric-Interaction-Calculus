@@ -141,7 +141,7 @@ pub fn parse_term<'a>(code : &'a Str, ctx : &mut Context<'a>, idx : &mut u32, co
             // Comment
             b'(' => parse_term(&code[1..], ctx, idx, comment + 1),
             // Abstraction
-            b'#' => {
+            b'\\' => {
                 let (code, nam) = parse_name(&code[1..]);
                 extend(nam, None, ctx);
                 let (code, bod) = parse_term(code, ctx, idx, comment);
@@ -151,7 +151,7 @@ pub fn parse_term<'a>(code : &'a Str, ctx : &mut Context<'a>, idx : &mut u32, co
                 (code, Lam{nam,bod})
             },
             // Application
-            b':' => {
+            b'/' => {
                 let (code, fun) = parse_term(&code[1..], ctx, idx, comment);
                 let (code, arg) = parse_term(code, ctx, idx, comment);
                 let fun = Box::new(fun);
@@ -159,7 +159,7 @@ pub fn parse_term<'a>(code : &'a Str, ctx : &mut Context<'a>, idx : &mut u32, co
                 (code, App{fun,arg})
             },
             // Pair
-            b'&' => {
+            b'|' => {
                 let (code, tag) = parse_name(&code[1..]);
                 let (code, fst) = parse_term(code, ctx, idx, comment);
                 let (code, snd) = parse_term(code, ctx, idx, comment);
@@ -207,7 +207,7 @@ pub fn parse_term<'a>(code : &'a Str, ctx : &mut Context<'a>, idx : &mut u32, co
                     if ctx[i].0 == nam {
                         match ctx[i].1 {
                             Some(ref term) => {
-                                let mut name = nam.clone().to_vec();
+                                let name = nam.clone().to_vec();
                                 val = Some(copy(&name, *idx, term));
                                 *idx += 1;
                                 break;
@@ -437,7 +437,7 @@ pub fn from_net(net : &Net) -> Term {
         , next     : Port
         , var_name : &mut HashMap<u32, Vec<u8>>
         , lets_vec : &mut Vec<u32>
-        , lets_set : &mut HashSet<(u32)>
+        , lets_set : &mut HashSet<u32>
         ) -> Term {
         match kind(net, addr(next)) {
             // If we're visiting a set...
@@ -449,7 +449,7 @@ pub fn from_net(net : &Net) -> Term {
                     let nam = name_of(net, port(addr(next),1), var_name);
                     let prt = enter(net, port(addr(next), 2));
                     let bod = read_term(net, prt, var_name, lets_vec, lets_set);
-                    let mut lam = Lam{nam: nam, bod: Box::new(bod)};
+                    let lam = Lam{nam: nam, bod: Box::new(bod)};
                     lam
                 },
                 // If we're visiting a port 1, then it is a variable.
