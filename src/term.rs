@@ -17,7 +17,7 @@ pub enum Term {
     Par {tag: u32, fst: Box<Term>, snd: Box<Term>},
 
     // Definitions (let).
-    Let {tag: u32, fst: Vec<u8>, snd: Vec<u8>, val: Box<Term>, nxt: Box<Term>},
+    Dup {tag: u32, fst: Vec<u8>, snd: Vec<u8>, val: Box<Term>, nxt: Box<Term>},
 
     // Variable.
     Var {nam: Vec<u8>}, 
@@ -69,11 +69,28 @@ fn narrow<'a,'b>(ctx : &'b mut Context<'a>) -> &'b mut Context<'a> {
 
 // Parses a name, returns the remaining code and the name.
 fn parse_name(code : &Str) -> (&Str, &Str) {
-    let mut i : usize = 0;
-    while i < code.len() && !(code[i] == b' ' || code[i] == b'\n') {
+    // Ignore whitespace until name is found. 
+    let mut j : usize = 0;
+    while j < code.len() && (
+        code[j] == b' ' || code[j] == b'\n' || code[j] == b'\r'
+    ) {
+        if code[j] == b'\\' || code[j] == b'/' || code[j] == b'|' || code[j] == b'=' ||
+           code[j] == b'#' || code[j] == b'*'
+        { panic!("Valid name not found: {}.", std::str::from_utf8(code).unwrap()) };
+        
+        j += 1;
+    }
+
+    let mut i : usize = j;
+    while i < code.len() && !(
+        code[i] == b' ' || code[i] == b'\n' || code[i] == b'\r' ||
+        code[i] == b'\\' || code[i] == b'/' || code[i] == b'|' || code[i] == b'=' ||
+        code[i] == b'#' || code[i] == b'*'
+    ) {
         i += 1;
     }
-    (&code[i..], &code[0..i])
+
+    (&code[i..], &code[j..i])
 }
 
 pub fn namespace(space : &Vec<u8>, idx : u32, var : &Vec<u8>) -> Vec<u8> {
@@ -108,13 +125,13 @@ pub fn copy(space : &Vec<u8>, idx : u32, term : &Term) -> Term {
             let snd = Box::new(copy(space, idx, snd));
             Par{tag, fst, snd}
         },
-        Let{tag, fst, snd, val, nxt} => {
+        Dup{tag, fst, snd, val, nxt} => {
             let tag = *tag;
             let fst = namespace(space, idx, fst);
             let snd = namespace(space, idx, snd);
             let val = Box::new(copy(space, idx, val));
             let nxt = Box::new(copy(space, idx, nxt));
-            Let{tag, fst, snd, val, nxt}
+            Dup{tag, fst, snd, val, nxt}
         },
         Var{nam} => {
             let nam = namespace(space, idx, nam);
@@ -128,18 +145,34 @@ pub fn copy(space : &Vec<u8>, idx : u32, term : &Term) -> Term {
 pub fn parse_term<'a>(code : &'a Str, ctx : &mut Context<'a>, idx : &mut u32, comment : u32) -> (&'a Str, Term) {
     if comment > 0 {
         match code[0] {
-            b'(' => parse_term(&code[1..], ctx, idx, comment + 1),
-            b')' => parse_term(&code[1..], ctx, idx, comment - if comment == 0 { 0 } else { 1 }),
-            _    => parse_term(&code[1..], ctx, idx, comment)
+            b'(' => {
+                parse_term(&code[1..], ctx, idx, comment + 1)
+            },
+            b')' => {
+                parse_term(&code[1..], ctx, idx, comment - if comment == 0 { 0 } else { 1 })
+            },
+            _    => {
+                parse_term(&code[1..], ctx, idx, comment)
+            }
         }
     } else {
         match code[0] {
             // Whitespace
-            b' ' => parse_term(&code[1..], ctx, idx, comment),
+            b' ' => {
+                parse_term(&code[1..], ctx, idx, comment)
+            },
             // Newline
-            b'\n' => parse_term(&code[1..], ctx, idx, comment),
+            b'\n' => {
+                parse_term(&code[1..], ctx, idx, comment)
+            },
+            // Carriage return
+            b'\r' => {
+                parse_term(&code[1..], ctx, idx, comment)
+            },
             // Comment
-            b'(' => parse_term(&code[1..], ctx, idx, comment + 1),
+            b'(' => {
+                parse_term(&code[1..], ctx, idx, comment + 1)
+            },
             // Abstraction
             b'\\' => {
                 let (code, nam) = parse_name(&code[1..]);
@@ -168,7 +201,7 @@ pub fn parse_term<'a>(code : &'a Str, ctx : &mut Context<'a>, idx : &mut u32, co
                 let snd = Box::new(snd);
                 (code, Par{tag,fst,snd})
             },
-            // Let
+            // Duplication
             b'=' => {
                 let (code, tag) = parse_name(&code[1..]);
                 let (code, fst) = parse_name(&code[1..]);
@@ -184,7 +217,7 @@ pub fn parse_term<'a>(code : &'a Str, ctx : &mut Context<'a>, idx : &mut u32, co
                 let snd = snd.to_vec();
                 let val = Box::new(val);
                 let nxt = Box::new(nxt);
-                (code, Let{tag, fst, snd, val, nxt})
+                (code, Dup{tag, fst, snd, val, nxt})
             },
             // Definition
             b':' => {
@@ -256,7 +289,7 @@ pub fn to_string(term : &Term) -> Vec<Chr> {
                 code.extend_from_slice(b" ");
                 stringify_term(code, &snd);
             },
-            &Let{tag, ref fst, ref snd, ref val, ref nxt} => {
+            &Dup{tag, ref fst, ref snd, ref val, ref nxt} => {
                 code.extend_from_slice(b"=");
                 code.append(&mut new_name(tag));
                 code.extend_from_slice(b" ");
@@ -340,11 +373,11 @@ pub fn to_net(term : &Term) -> Net {
                 link(net, port(dup, 2), snd);
                 port(dup, 0)
             },
-            // A let becomes a dup node too. Ports:
+            // A duplication becomes a dup node too. Ports:
             // - 0: points to the value projected.
             // - 1: points to the occurrence of the first variable.
             // - 2: points to the occurrence of the second variable.
-            &Let{tag, ref fst, ref snd, ref val, ref nxt} => {
+            &Dup{tag, ref fst, ref snd, ref val, ref nxt} => {
                 let dup = new_node(net, FAN + tag);
                 scope.insert(fst.to_vec(), port(dup, 1));
                 scope.insert(snd.to_vec(), port(dup, 2));
@@ -512,7 +545,7 @@ pub fn from_net(net : &Net) -> Term {
         let snd = name_of(net, port(dup,2), &mut binder_name);
         let val = Box::new(val);
         let nxt = Box::new(main);
-        main = Let{tag, fst, snd, val, nxt};
+        main = Dup{tag, fst, snd, val, nxt};
     }
     main
 }
