@@ -47,7 +47,7 @@ pub fn link(node : u32, port : u32) -> Link {
     (node << 2) | port
 }
 
-// Returns the address of a link (TODO: rename).
+// Returns the address of a link.
 pub fn addr(link : Link) -> u32 {
     link >> 2
 }
@@ -79,13 +79,13 @@ pub fn connect(net : &mut Net, ptr_a : u32, ptr_b : u32) {
 // Reduces a net to normal form lazily and sequentially.
 pub fn reduce(net : &mut Net) -> Stats {
     let mut stats = Stats { loops: 0, rules: 0, betas: 0, dupls: 0, annis: 0 };
-    let mut warp : Vec<u32> = Vec::new();
+    let mut schedule : Vec<u32> = Vec::new();
     let mut exit : Vec<u32> = Vec::new();
     let mut next : Link = net.nodes[0];
     let mut prev : Link;
     let mut back : Link;
-    while next > 0 || warp.len() > 0 {
-        next = if next == 0 { enter(net, warp.pop().unwrap()) } else { next };
+    while next > 0 || schedule.len() > 0 {
+        next = if next == 0 { enter(net, schedule.pop().unwrap()) } else { next };
         prev = enter(net, next);
         if port(next) == 0 && port(prev) == 0 && addr(prev) != 0 {
             stats.rules += 1;
@@ -93,7 +93,7 @@ pub fn reduce(net : &mut Net) -> Stats {
             rewrite(net, addr(prev), addr(next));
             next = enter(net, back);
         } else if port(next) == 0 {
-            warp.push(link(addr(next), 2));
+            schedule.push(link(addr(next), 2));
             next = enter(net, link(addr(next), 1));
         } else {
             exit.push(port(next));
@@ -153,6 +153,6 @@ pub fn print_net(net : &mut Net) {
     i=0;
     while i < net.reuse.len() {
         println!("{}", net.reuse[i] );
-        i+=4;
+        i+=1;
     }
 }
