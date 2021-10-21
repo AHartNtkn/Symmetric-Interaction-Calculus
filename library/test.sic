@@ -1,0 +1,10 @@
+(identity function)
+:i\x x
+
+:k\y\- y
+
+:s\f\g\z
+   = z0 z1 z
+   //f z0 /g z1
+
+///s k k i
